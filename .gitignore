@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# masta runtime data (local user state)
+*.db
+*.sqlite3
+.masta/
+data/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
