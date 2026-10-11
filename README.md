@@ -61,8 +61,25 @@ uv run masta chat --coach backend-engineering
 | `masta coach list` / `masta coach use <name>` | List / select coaches |
 | `masta goals` | View and manage tracked goals |
 | `masta checkin` | Log progress / how you're doing |
+| `masta serve` | Run the HTTP API (and built web UI) for the frontend |
 | `masta providers` | List configured LLM providers & profiles |
 | `masta config` | Show resolved configuration |
+
+## Web UI (early)
+
+A React frontend lives in [`web/`](web/), backed by an HTTP API over the same engine and
+memory as the CLI. Today it is an app shell: it lists coaches, goals, and check-ins; chat in
+the browser is next.
+
+```bash
+uv sync --extra web          # FastAPI + uvicorn
+uv run masta serve           # API on http://127.0.0.1:8000
+
+cd web && pnpm install
+pnpm dev                     # UI on http://localhost:5173, proxying /api to the API
+```
+
+For a single-process setup, run `pnpm build` and `masta serve` will host the built UI too.
 
 ## Writing your own coach
 

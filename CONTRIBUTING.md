@@ -11,6 +11,15 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+Frontend (`web/`, needs Node 20+ and pnpm):
+
+```bash
+cd web
+pnpm install
+pnpm dev             # with `uv run masta serve` running alongside
+pnpm test && pnpm typecheck && pnpm lint && pnpm format:check
+```
+
 ## Project layout
 
 See [ARCHITECTURE.md](ARCHITECTURE.md). The short version: keep the layers honest — nothing
