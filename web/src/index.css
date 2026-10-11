@@ -1,0 +1,278 @@
+:root {
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --border: #e4e1da;
+  --text: #2a2826;
+  --text-muted: #6f6a63;
+  --accent: #b4432b;
+  --accent-bg: #f7e6e1;
+  --ok: #2f7d4f;
+  --warn: #9a6b00;
+  --danger: #b3261e;
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  --radius: 8px;
+
+  font: 16px/1.5 var(--sans);
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;
+    --surface: #1f1f23;
+    --border: #33333a;
+    --text: #ececec;
+    --text-muted: #a09fa6;
+    --accent: #f08a70;
+    --accent-bg: #3a2420;
+    --ok: #6fcf97;
+    --warn: #e2b93b;
+    --danger: #f2877f;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+p,
+ul {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--accent-bg);
+  font: 0.875em var(--mono);
+}
+
+/* --- shell ----------------------------------------------------------------- */
+.shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100svh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  padding: 0 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 8px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+.nav-link.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.api-status {
+  margin-top: auto;
+  padding: 0 8px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.api-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.api-status--up::before {
+  background: var(--ok);
+}
+
+.api-status--down::before {
+  background: var(--danger);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 860px;
+  padding: 32px;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+  }
+
+  .api-status {
+    margin: 0 0 0 auto;
+  }
+
+  .content {
+    padding: 24px 16px;
+  }
+}
+
+/* --- page content ---------------------------------------------------------- */
+.page-header h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.page-header p,
+.muted {
+  color: var(--text-muted);
+}
+
+.notice {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.notice--error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card h2 {
+  font-size: 1.0625rem;
+}
+
+.card p {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.tag,
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.rows {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 12px 16px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row-title {
+  flex: 1 1 12rem;
+}
+
+.badge--active,
+.badge--achieved {
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  color: var(--ok);
+}
+
+.badge--paused {
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  color: var(--warn);
+}
+
+.badge--abandoned {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
