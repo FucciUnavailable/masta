@@ -1,7 +1,7 @@
 """The ``masta`` command-line entrypoint.
 
-Commands: chat, coach (list/use), goals, checkin, providers, config. Designed so the read-only
-commands (coach list, providers, config, goals) work without any API keys configured.
+Commands: chat, serve, coach (list/use), goals, checkin, providers, config. Designed so the
+read-only commands (coach list, providers, config, goals) work without any API keys configured.
 """
 
 from __future__ import annotations
@@ -35,6 +35,28 @@ def chat(
     from masta.cli.repl import run_repl
 
     run_repl(coach_name=coach, profile=profile)
+
+
+# --- serve ------------------------------------------------------------------
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind."),
+    port: int = typer.Option(8000, "--port", help="Port to listen on."),
+    reload: bool = typer.Option(False, "--reload", help="Restart on code changes (dev)."),
+) -> None:
+    """Run the HTTP API (and the built web UI, if present) for the frontend."""
+    try:
+        import uvicorn
+
+        import masta.api  # noqa: F401
+    except ModuleNotFoundError as exc:
+        console.print(
+            f"[red]Missing dependency {exc.name!r}.[/] "
+            "Install the web extra: [cyan]uv sync --extra web[/]"
+        )
+        raise typer.Exit(code=1) from exc
+
+    uvicorn.run("masta.api.app:create_app", factory=True, host=host, port=port, reload=reload)
 
 
 # --- coach ------------------------------------------------------------------
