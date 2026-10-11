@@ -4,7 +4,10 @@
 **the rest of the app never talks to a provider SDK directly** — only to our own interfaces.
 
 ```
-            CLI / TUI  (Typer + Rich)
+   CLI / TUI                Web UI (web/, React)
+ (Typer + Rich)                     │
+        │                  HTTP API (api/, FastAPI)
+        └─────────┬─────────────────┘
                   │
         Orchestrator / agent loop          (agent.py)
         prompt → reason → tool calls → memory write
@@ -76,6 +79,18 @@ exchange to memory.
 ### CLI (`masta/cli/`)
 - `app.py` — Typer entrypoint and commands.
 - `repl.py` — the Rich interactive chat loop.
+
+### HTTP API (`masta/api/`) — optional `web` extra
+A second front door beside the CLI; it adds no behavior of its own.
+- `routes.py` — `/api` handlers over `Repository` and `CoachingSession`. Chat streams as
+  server-sent events (`delta`… then `done` or `error`). The repository and provider are
+  FastAPI dependencies, so tests swap in a temp DB and a fake provider.
+- `schemas.py` — wire shapes, mirrored by `web/src/api/types.ts`.
+- `app.py` — `create_app()`; also serves `web/dist` with SPA fallback when it has been built.
+
+### Web frontend (`web/`)
+Vite + React + TypeScript. `src/api/` is the typed client, `src/components/AppShell.tsx` the
+layout, `src/pages/` one file per route. In dev, Vite proxies `/api` to `masta serve`.
 
 ## Extension points
 - **New provider** → already covered by LiteLLM model strings; add a profile in config.
