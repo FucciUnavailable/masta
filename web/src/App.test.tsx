@@ -60,6 +60,18 @@ const coach = {
   editable: false,
 }
 
+const coachDetail = {
+  ...coach,
+  persona: 'You are a backend sensei.',
+  style: { both_sides: true, socratic: true, rest_reminders: true },
+  guardrails: {
+    disclaimers: ['Not legal advice.'],
+    refuse_topics: [],
+    escalate_to_professional: [],
+    safe_ranges: { hours: [1, 8] },
+  },
+}
+
 const profile = {
   name: 'claude',
   model: 'anthropic/claude-sonnet-4-6',
@@ -267,6 +279,153 @@ test('a check-in is logged with its mood and energy', async () => {
       goal_id: null,
     }),
   )
+})
+
+test('a new coach is created from the form', async () => {
+  const calls = stubApi({
+    '/api/profiles': [profile],
+    '/api/coaches': [],
+    'POST /api/coaches': coachDetail,
+  })
+  renderAt('/coaches/new')
+
+  fireEvent.change(screen.getByLabelText(/^Name/), {
+    target: { value: 'sleep-coach' },
+  })
+  fireEvent.change(screen.getByLabelText('Tags', { exact: false }), {
+    target: { value: 'health, sleep,' },
+  })
+  fireEvent.change(screen.getByLabelText(/^Persona/), {
+    target: { value: 'Be calm.' },
+  })
+  fireEvent.click(screen.getByLabelText(/Socratic/))
+  fireEvent.change(screen.getByLabelText('Disclaimers'), {
+    target: { value: 'Not a doctor.\n\nSee a GP.' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Create coach' }))
+
+  await waitFor(() =>
+    expect(calls.find((c) => c.route === 'POST /api/coaches')?.body).toEqual({
+      name: 'sleep-coach',
+      display_name: null,
+      description: '',
+      tags: ['health', 'sleep'],
+      model_profile: null,
+      tools: [],
+      persona: 'Be calm.',
+      style: { both_sides: true, socratic: true, rest_reminders: true },
+      guardrails: {
+        disclaimers: ['Not a doctor.', 'See a GP.'],
+        refuse_topics: [],
+        escalate_to_professional: [],
+        safe_ranges: {},
+      },
+    }),
+  )
+  // Back on the list afterwards.
+  expect(
+    await screen.findByRole('heading', { name: 'Coaches' }),
+  ).toBeInTheDocument()
+})
+
+test('a built-in coach is read-only but can be duplicated', async () => {
+  stubApi({
+    '/api/profiles': [profile],
+    '/api/coaches/backend-engineering': coachDetail,
+  })
+  renderAt('/coaches/backend-engineering')
+
+  expect(
+    await screen.findByDisplayValue('You are a backend sensei.'),
+  ).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
+  expect(screen.getByRole('link', { name: 'Duplicate it' })).toHaveAttribute(
+    'href',
+    '/coaches/new?from=backend-engineering',
+  )
+})
+
+test('duplicating keeps the settings the form does not show', async () => {
+  const calls = stubApi({
+    '/api/profiles': [profile],
+    '/api/coaches': [],
+    '/api/coaches/backend-engineering': coachDetail,
+    'POST /api/coaches': coachDetail,
+  })
+  renderAt('/coaches/new?from=backend-engineering')
+
+  await screen.findByDisplayValue('You are a backend sensei.')
+  const name = screen.getByLabelText(/^Name/)
+  expect(name).toHaveValue('')
+  fireEvent.change(name, { target: { value: 'my-backend' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create coach' }))
+
+  await waitFor(() =>
+    expect(
+      calls.find((c) => c.route === 'POST /api/coaches')?.body,
+    ).toMatchObject({
+      name: 'my-backend',
+      tools: ['web_search'],
+      guardrails: {
+        disclaimers: ['Not legal advice.'],
+        safe_ranges: { hours: [1, 8] },
+      },
+    }),
+  )
+})
+
+test('settings add a profile and change the default', async () => {
+  const local = {
+    ...profile,
+    name: 'local',
+    model: 'ollama/llama3.1',
+    is_default: false,
+    configured: false,
+    missing_env: ['SOME_KEY'],
+  }
+  const settings = {
+    default_profile: 'claude',
+    default_profile_from_env: false,
+    config_file: '/cfg/config.toml',
+    data_dir: '/data',
+    coaches_dir: '/cfg/coaches',
+  }
+  const calls = stubApi({
+    '/api/profiles': [profile, local],
+    '/api/settings': settings,
+    'PATCH /api/settings': settings,
+    'PUT /api/profiles/qwen': local,
+  })
+  renderAt('/settings')
+
+  expect(await screen.findByText('needs SOME_KEY')).toBeInTheDocument()
+  expect(await screen.findByText('/cfg/config.toml')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Make default' }))
+
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'qwen' } })
+  fireEvent.change(screen.getByLabelText(/^Model/), {
+    target: { value: 'ollama/qwen3' },
+  })
+  fireEvent.change(screen.getByLabelText('Max tokens'), {
+    target: { value: '2048' },
+  })
+  const add = screen.getByRole('button', { name: 'Add profile' })
+  await waitFor(() => expect(add).toBeEnabled())
+  fireEvent.click(add)
+
+  await waitFor(() =>
+    expect(
+      calls.find((c) => c.route === 'PUT /api/profiles/qwen')?.body,
+    ).toEqual({
+      model: 'ollama/qwen3',
+      temperature: 0.7,
+      max_tokens: 2048,
+      api_base: null,
+    }),
+  )
+  expect(calls.find((c) => c.route === 'PATCH /api/settings')?.body).toEqual({
+    default_profile: 'local',
+  })
 })
 
 test('unknown routes fall through to not-found', () => {
