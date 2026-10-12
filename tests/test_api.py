@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
 from fastapi.testclient import TestClient
 
+from masta.agent import CoachingSession
 from masta.api import create_app
-from masta.api.routes import get_provider_resolver, get_repo
+from masta.api.routes import _sse, get_provider_resolver, get_repo
+from masta.coaches.loader import load_coach
 from tests.conftest import FakeProvider
 
 
@@ -113,6 +116,24 @@ def test_chat_reports_provider_errors_in_stream(app, client):
     events = _events(res.text)
     assert events[0] == {"type": "delta", "text": "partial "}
     assert events[-1] == {"type": "error", "message": "provider exploded"}
+
+
+def test_chat_stream_abandoned_by_the_client_keeps_the_partial_reply(temp_repo):
+    session = CoachingSession(
+        coach=load_coach("backend-engineering"),
+        provider=FakeProvider(response="one two three"),
+        repo=temp_repo,
+    )
+
+    async def read_one_event_then_disconnect() -> str:
+        events = _sse(session.stream("hi"))
+        first = await events.__anext__()
+        await events.aclose()
+        return first
+
+    assert json.loads(asyncio.run(read_one_event_then_disconnect())[6:])["text"] == "one "
+    stored = temp_repo.recent_messages(coach="backend-engineering")
+    assert [(m.role, m.content) for m in stored] == [("user", "hi"), ("assistant", "one ")]
 
 
 def test_sessions_keep_conversations_apart(client, fake_provider):

@@ -8,10 +8,11 @@ database and a fake provider.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Generator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi.concurrency import iterate_in_threadpool
 from fastapi.responses import StreamingResponse
 
 from masta import __version__
@@ -317,15 +318,18 @@ def _event(type_: str, **fields: object) -> str:
     return f"data: {json.dumps({'type': type_, **fields})}\n\n"
 
 
-def _sse(chunks: Iterator[str]) -> Iterator[str]:
+async def _sse(chunks: Generator[str, None, None]) -> AsyncIterator[str]:
     """Frame reply chunks as server-sent events: ``delta``\\* then ``done`` or ``error``."""
     try:
-        for piece in chunks:
+        async for piece in iterate_in_threadpool(chunks):
             yield _event("delta", text=piece)
+        yield _event("done")
     except Exception as exc:  # the status line is already sent; report in-band instead
         yield _event("error", message=str(exc))
-        return
-    yield _event("done")
+    finally:
+        # A client that disconnects just stops being read from. Close the reply explicitly
+        # so the session saves what it had streamed, rather than whenever it is collected.
+        chunks.close()
 
 
 @router.post("/chat")
