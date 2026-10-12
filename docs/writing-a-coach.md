@@ -20,6 +20,9 @@ Drop the directory in any of these locations (later ones override earlier):
 2. User: `~/.config/masta/coaches/`
 3. A pip package exposing a `masta.coaches` entry point
 
+With the web UI running, you can also create and edit coaches in the browser (**Coaches →
+New coach**); it writes the same files to `~/.config/masta/coaches/`.
+
 Then check it loads:
 
 ```bash

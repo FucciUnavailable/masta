@@ -68,8 +68,15 @@ uv run masta chat --coach backend-engineering
 ## Web UI (early)
 
 A React frontend lives in [`web/`](web/), backed by an HTTP API over the same engine and
-memory as the CLI. Today it is an app shell: it lists coaches, goals, and check-ins; chat in
-the browser is next.
+memory as the CLI. In the browser you can:
+
+- **Chat** with a coach, with replies streamed as they are written. Each conversation is a
+  session you can come back to.
+- Track **goals** and log **check-ins**; coaches see your active goals and latest check-in.
+- Create and edit your own **coaches** — persona, coaching style, and guardrails — or
+  duplicate a built-in one.
+- Manage **model profiles** and the default in Settings. API keys are not entered in the
+  UI; set them in the environment `masta serve` runs in.
 
 ```bash
 uv sync --extra web          # FastAPI + uvicorn

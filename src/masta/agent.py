@@ -30,8 +30,12 @@ class CoachingSession:
         provider: LLMProvider | None = None,
         repo: Repository | None = None,
         history_limit: int = 20,
+        session_id: int | None = None,
     ) -> None:
         self.coach = coach
+        # A chat session scopes history to one conversation; without one (the terminal
+        # chat) history is everything said to this coach.
+        self.session_id = session_id
         self.repo = repo or Repository()
         self.history_limit = history_limit
         # Resolve the provider from the coach's profile (or the global default).
@@ -49,7 +53,10 @@ class CoachingSession:
         snapshot = self._memory_snapshot()
         if snapshot:
             messages.append(Message(role="system", content=snapshot))
-        for m in self.repo.recent_messages(limit=self.history_limit, coach=self.coach.name):
+        history = self.repo.recent_messages(
+            limit=self.history_limit, coach=self.coach.name, session_id=self.session_id
+        )
+        for m in history:
             if m.role in ("user", "assistant"):
                 messages.append(Message(role=m.role, content=m.content))
         messages.append(Message(role="user", content=user_input))
@@ -76,19 +83,29 @@ class CoachingSession:
         """Send a message, persist both sides, and return the reply."""
         messages = self._build_messages(user_input)
         result = self.provider.complete(messages)
-        self.repo.add_message("user", user_input, coach=self.coach.name)
-        self.repo.add_message("assistant", result.text, coach=self.coach.name)
+        self._remember("user", user_input)
+        self._remember("assistant", result.text)
         return result.text
 
     def stream(self, user_input: str) -> Iterator[str]:
-        """Stream the reply, persisting the full exchange once complete."""
+        """Stream the reply, persisting the exchange.
+
+        If the stream is cut short — the provider fails or the caller stops reading — the
+        part of the reply that was already delivered is still saved.
+        """
         messages = self._build_messages(user_input)
-        self.repo.add_message("user", user_input, coach=self.coach.name)
+        self._remember("user", user_input)
         chunks: list[str] = []
-        for piece in self.provider.stream(messages):
-            chunks.append(piece)
-            yield piece
-        self.repo.add_message("assistant", "".join(chunks), coach=self.coach.name)
+        try:
+            for piece in self.provider.stream(messages):
+                chunks.append(piece)
+                yield piece
+        finally:
+            if chunks:
+                self._remember("assistant", "".join(chunks))
+
+    def _remember(self, role: str, content: str) -> None:
+        self.repo.add_message(role, content, coach=self.coach.name, session_id=self.session_id)
 
     # --- explicit reasoning helpers -----------------------------------------
     def both_sides(self, topic: str, context: str = "") -> BothSides:

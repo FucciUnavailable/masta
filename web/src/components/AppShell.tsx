@@ -6,6 +6,8 @@ const NAV = [
   { to: '/', label: 'Chat' },
   { to: '/goals', label: 'Goals' },
   { to: '/check-ins', label: 'Check-ins' },
+  { to: '/coaches', label: 'Coaches' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 function ApiStatus() {

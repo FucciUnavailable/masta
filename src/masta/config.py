@@ -3,11 +3,14 @@
 Precedence (low → high): built-in defaults < ``config.toml`` < environment variables
 (prefixed ``MASTA_``). Provider API keys are read by LiteLLM straight from the environment
 (see ``docs/providers.md``); we never store secrets in the config file.
+
+The web UI edits the same ``config.toml`` through :func:`update_config_file`.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,6 +19,7 @@ try:  # Python 3.11+ has tomllib; fall back for 3.10.
 except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
+import tomli_w
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -116,3 +120,26 @@ def get_settings() -> Settings:
         ),
         profiles=profiles,
     )
+
+
+def read_config_file() -> dict:
+    """The raw contents of ``config.toml`` — what the user set, without the defaults."""
+    return _load_toml(get_settings().config_file)
+
+
+def update_config_file(mutate: Callable[[dict], None]) -> Settings:
+    """Apply ``mutate`` to the contents of ``config.toml``, save, and reload the settings.
+
+    The file is rewritten from its parsed form, so hand-written comments are not preserved.
+    """
+    path = get_settings().config_file
+    raw = _load_toml(path)
+    mutate(raw)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(tomli_w.dumps(raw), encoding="utf-8")
+    tmp.replace(path)  # atomic, so a crash mid-write can't leave a truncated config
+
+    get_settings.cache_clear()
+    return get_settings()
