@@ -37,12 +37,17 @@ api_base = "http://localhost:11434"
 model = "deepseek/deepseek-chat"
 ```
 
+The web UI's **Settings** page edits the same file: add or change profiles and pick the
+default. Saving from there rewrites `config.toml`, so comments in it are not kept. API keys
+are never written to it.
+
 ## Switching providers
 
 - **Globally:** set `default_profile`, or `MASTA_DEFAULT_PROFILE` in the environment.
 - **Per coach:** set `model_profile:` in the coach's `coach.yaml`.
 - **Mid-session:** type `/model <profile>` in the chat REPL to swap on the fly — the
-  conversation continues seamlessly because history is provider-independent.
+  conversation continues seamlessly because history is provider-independent. In the web UI,
+  use the **Model** menu above the chat.
 
 Inspect what's wired up:
 
