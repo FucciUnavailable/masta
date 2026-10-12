@@ -1,0 +1,24 @@
+# Keep secrets and local state out of the build context.
+.env
+.env.*
+*.db
+*.sqlite3
+.masta/
+data/
+
+.git
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+web/node_modules/
+web/dist/
+
+tests/
+docs/
