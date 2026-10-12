@@ -197,33 +197,76 @@ test('deleting the open session returns to the coach picker', async () => {
   expect(calls.map((c) => c.route)).toContain('DELETE /api/sessions/7')
 })
 
-test('goals page shows goals with their status', async () => {
-  stubApi({
+test('goals can be added and have their status changed', async () => {
+  const goal = {
+    id: 1,
+    title: 'Learn Postgres',
+    description: '',
+    coach: null,
+    status: 'paused',
+    created_at: '2026-01-01T00:00:00Z',
+    target_date: null,
+  }
+  const calls = stubApi({
     '/api/health': health,
-    '/api/goals': [
-      {
-        id: 1,
-        title: 'Learn Postgres',
-        description: '',
-        coach: null,
-        status: 'paused',
-        created_at: '2026-01-01T00:00:00',
-        target_date: null,
-      },
-    ],
+    '/api/coaches': [coach],
+    '/api/goals': [goal],
+    'POST /api/goals': goal,
+    'PATCH /api/goals/1': goal,
   })
   renderAt('/goals')
 
-  expect(await screen.findByText('Learn Postgres')).toBeInTheDocument()
-  expect(screen.getByText('paused')).toBeInTheDocument()
+  const status = await screen.findByLabelText('Status of Learn Postgres')
+  expect(status).toHaveValue('paused')
+  fireEvent.change(status, { target: { value: 'achieved' } })
+  await waitFor(() =>
+    expect(calls.map((c) => c.route)).toContain('PATCH /api/goals/1'),
+  )
+
+  fireEvent.change(screen.getByLabelText('New goal'), {
+    target: { value: ' Ship it ' },
+  })
+  const add = screen.getByRole('button', { name: 'Add goal' })
+  await waitFor(() => expect(add).toBeEnabled())
+  fireEvent.click(add)
+
+  await waitFor(() =>
+    expect(calls.find((c) => c.route === 'POST /api/goals')?.body).toEqual({
+      title: 'Ship it',
+      coach: null,
+    }),
+  )
+  expect(calls.find((c) => c.route === 'PATCH /api/goals/1')?.body).toEqual({
+    status: 'achieved',
+  })
 })
 
-test('empty and failing requests render their own states', async () => {
-  stubApi({ '/api/checkins': [] })
+test('a check-in is logged with its mood and energy', async () => {
+  const calls = stubApi({
+    '/api/checkins': [],
+    '/api/goals': [],
+    'POST /api/checkins': {},
+  })
   renderAt('/check-ins')
 
   expect(await screen.findByText(/No check-ins yet/)).toBeInTheDocument()
   expect(await screen.findByText(/API unreachable/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Log check-in' })).toBeDisabled()
+
+  fireEvent.change(screen.getByLabelText('How’s it going?'), {
+    target: { value: 'tired' },
+  })
+  fireEvent.change(screen.getByLabelText('Energy'), { target: { value: '2' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Log check-in' }))
+
+  await waitFor(() =>
+    expect(calls.find((c) => c.route === 'POST /api/checkins')?.body).toEqual({
+      note: 'tired',
+      mood: null,
+      energy: 2,
+      goal_id: null,
+    }),
+  )
 })
 
 test('unknown routes fall through to not-found', () => {
