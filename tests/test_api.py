@@ -115,6 +115,148 @@ def test_chat_reports_provider_errors_in_stream(app, client):
     assert events[-1] == {"type": "error", "message": "provider exploded"}
 
 
+def test_sessions_keep_conversations_apart(client, fake_provider):
+    assert client.post("/api/sessions", json={"coach": "nope"}).status_code == 404
+
+    first = client.post("/api/sessions", json={"coach": "backend-engineering"}).json()
+    second = client.post("/api/sessions", json={"coach": "backend-engineering"}).json()
+    assert first["title"] == ""
+
+    for session, text in ((first, "about postgres"), (second, "about queues")):
+        body = {"coach": "backend-engineering", "message": text, "session_id": session["id"]}
+        assert client.post("/api/chat", json=body).status_code == 200
+
+    # The second session's prompt never saw the first session's messages.
+    assert "about postgres" not in [m.content for m in fake_provider.calls[-1]]
+
+    listed = client.get("/api/sessions").json()
+    assert [s["title"] for s in listed] == ["about queues", "about postgres"]
+
+    thread = client.get(f"/api/sessions/{first['id']}/messages").json()
+    assert [(m["role"], m["content"]) for m in thread] == [
+        ("user", "about postgres"),
+        ("assistant", "ok "),
+    ]
+
+    assert client.delete(f"/api/sessions/{first['id']}").status_code == 204
+    assert client.get(f"/api/sessions/{first['id']}").status_code == 404
+    assert client.get(f"/api/sessions/{first['id']}/messages").status_code == 404
+    assert client.delete(f"/api/sessions/{first['id']}").status_code == 404
+
+
+def test_chat_rejects_unknown_or_mismatched_session(client):
+    body = {"coach": "backend-engineering", "message": "hi", "session_id": 999}
+    assert client.post("/api/chat", json=body).status_code == 404
+
+    session = client.post("/api/sessions", json={"coach": "weight-loss-safe"}).json()
+    res = client.post("/api/chat", json={**body, "session_id": session["id"]})
+    assert res.status_code == 409
+    assert client.get(f"/api/sessions/{session['id']}/messages").json() == []
+
+
+COACH = {
+    "name": "sleep-coach",
+    "display_name": "Sleep Coach",
+    "description": "Helps you sleep.",
+    "tags": ["health"],
+    "persona": "You are a calm sleep coach.",
+    "style": {"both_sides": True, "socratic": False, "rest_reminders": True},
+    "guardrails": {"disclaimers": ["I am not a doctor."], "escalate_to_professional": ["apnea"]},
+}
+
+
+def test_coach_create_edit_delete(client, isolated_config):
+    created = client.post("/api/coaches", json=COACH)
+    assert created.status_code == 201
+    assert created.json()["editable"] is True
+    assert (isolated_config / "coaches" / "sleep-coach" / "coach.yaml").is_file()
+    assert client.post("/api/coaches", json=COACH).status_code == 409
+
+    # It is a real coach: listed, and its guardrails reach the system prompt.
+    assert "sleep-coach" in [c["name"] for c in client.get("/api/coaches").json()]
+    from masta.coaches.loader import load_coach
+
+    assert "I am not a doctor." in load_coach("sleep-coach").system_prompt()
+
+    update = {**COACH, "persona": "You are a strict sleep coach.", "tags": []}
+    del update["name"]
+    edited = client.put("/api/coaches/sleep-coach", json=update)
+    assert edited.status_code == 200
+    detail = client.get("/api/coaches/sleep-coach").json()
+    assert detail["persona"] == "You are a strict sleep coach."
+    assert detail["tags"] == []
+    assert detail["guardrails"]["escalate_to_professional"] == ["apnea"]
+
+    assert client.delete("/api/coaches/sleep-coach").status_code == 204
+    assert client.get("/api/coaches/sleep-coach").status_code == 404
+    assert not (isolated_config / "coaches" / "sleep-coach").exists()
+
+
+def test_coach_writes_are_validated(client, isolated_config):
+    for name in ("../evil", "Has Spaces", "", "trailing-", "a/b"):
+        assert client.post("/api/coaches", json={**COACH, "name": name}).status_code == 422
+    assert client.post("/api/coaches", json={**COACH, "persona": ""}).status_code == 422
+    assert client.post("/api/coaches", json={**COACH, "model_profile": "nope"}).status_code == 400
+    assert not (isolated_config / "coaches").exists()
+
+    # Bundled coaches are read-only.
+    assert client.get("/api/coaches/backend-engineering").json()["editable"] is False
+    assert client.put("/api/coaches/backend-engineering", json=COACH).status_code == 403
+    assert client.delete("/api/coaches/backend-engineering").status_code == 403
+    assert client.put("/api/coaches/nope", json=COACH).status_code == 404
+
+
+def test_profiles_are_saved_to_the_config_file(client, isolated_config, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    claude = next(p for p in client.get("/api/profiles").json() if p["name"] == "claude")
+    assert claude["builtin"] and not claude["customized"]
+    assert claude["missing_env"] == ["ANTHROPIC_API_KEY"] and not claude["configured"]
+
+    body = {"model": "ollama/qwen3", "temperature": 0.2, "api_base": "http://localhost:11434"}
+    saved = client.put("/api/profiles/qwen", json=body)
+    assert saved.status_code == 200
+    assert saved.json() == {
+        "name": "qwen",
+        "model": "ollama/qwen3",
+        "provider": "ollama",
+        "temperature": 0.2,
+        "max_tokens": None,
+        "api_base": "http://localhost:11434",
+        "configured": True,
+        "missing_env": [],
+        "is_default": False,
+        "builtin": False,
+        "customized": True,
+    }
+    assert "ollama/qwen3" in (isolated_config / "config.toml").read_text()
+
+    assert client.put("/api/profiles/qwen", json={"model": ""}).status_code == 422
+    assert client.put("/api/profiles/bad name", json=body).status_code == 422
+
+    # Overriding a built-in, then removing the override, restores the shipped model.
+    client.put("/api/profiles/claude", json={"model": "anthropic/other"})
+    assert client.delete("/api/profiles/claude").status_code == 204
+    claude = next(p for p in client.get("/api/profiles").json() if p["name"] == "claude")
+    assert claude["model"] != "anthropic/other"
+    assert client.delete("/api/profiles/claude").status_code == 404
+
+
+def test_default_profile_setting(client, monkeypatch):
+    assert client.get("/api/settings").json()["default_profile"] == "claude"
+    assert client.patch("/api/settings", json={"default_profile": "nope"}).status_code == 400
+
+    client.put("/api/profiles/mine", json={"model": "ollama/llama3.1"})
+    changed = client.patch("/api/settings", json={"default_profile": "mine"})
+    assert changed.json()["default_profile"] == "mine"
+    assert [p["name"] for p in client.get("/api/profiles").json() if p["is_default"]] == ["mine"]
+
+    # The default can't be removed out from under itself.
+    assert client.delete("/api/profiles/mine").status_code == 409
+
+    monkeypatch.setenv("MASTA_DEFAULT_PROFILE", "local")
+    assert client.patch("/api/settings", json={"default_profile": "claude"}).status_code == 409
+
+
 def test_serves_built_frontend_with_spa_fallback(tmp_path, temp_repo):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
