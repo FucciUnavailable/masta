@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from masta.memory.db import get_session, init_db
 from masta.memory.models import (
+    ChatSession,
     CheckIn,
     Goal,
     GoalStatus,
@@ -27,6 +28,7 @@ __all__ = [
     "GoalStatus",
     "Milestone",
     "CheckIn",
+    "ChatSession",
     "Message",
     "Reflection",
 ]

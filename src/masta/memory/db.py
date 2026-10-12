@@ -24,6 +24,19 @@ def _engine_for(db_path: Path | None):
     return create_engine(f"sqlite:///{db_path}", echo=False)
 
 
+def _add_missing_columns(engine) -> None:
+    """Bring a database created by an older masta up to date.
+
+    ``create_all`` only creates missing tables; it never alters existing ones.
+    """
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(message)")}
+        if "session_id" not in columns:
+            conn.exec_driver_sql(
+                "ALTER TABLE message ADD COLUMN session_id INTEGER REFERENCES chatsession(id)"
+            )
+
+
 def init_db(db_path: Path | None = None):
     """Create tables (idempotent) and return the engine.
 
@@ -36,6 +49,7 @@ def init_db(db_path: Path | None = None):
 
     engine = _engine_for(db_path)
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns(engine)
     if db_path is None:
         _engine = engine
     return engine

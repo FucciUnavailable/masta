@@ -71,11 +71,23 @@ class CheckIn(SQLModel, table=True):
     goal: Goal | None = Relationship(back_populates="checkins")
 
 
+class ChatSession(SQLModel, table=True):
+    """One conversation with a coach, so chats can be listed, resumed, and kept apart."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    coach: str
+    title: str = ""  # filled from the first user message
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+
 class Message(SQLModel, table=True):
     """Conversation history, so sessions have continuity."""
 
     id: int | None = Field(default=None, primary_key=True)
     coach: str | None = None
+    # Null for the terminal chat, which keeps one running conversation per coach.
+    session_id: int | None = Field(default=None, foreign_key="chatsession.id")
     role: str = "user"  # user | assistant | system | tool
     content: str = ""
     created_at: datetime = Field(default_factory=_now)
