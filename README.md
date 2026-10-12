@@ -88,6 +88,31 @@ pnpm dev                     # UI on http://localhost:5173, proxying /api to the
 
 For a single-process setup, run `pnpm build` and `masta serve` will host the built UI too.
 
+## Run with Docker
+
+With Docker (Compose v2) and `make`, one command builds the UI and the API into a single
+image and starts it:
+
+```bash
+make up                      # http://localhost:8000
+```
+
+The first run creates `.env` from `.env.example`; add a provider API key there and run
+`make restart`. Your database, `config.toml`, and coaches live in the `masta-data` volume,
+so they survive `make down` and rebuilds.
+
+| Command | What it does |
+| --- | --- |
+| `make up` | Build and start masta (`MASTA_PORT=9000 make up` to change the port) |
+| `make down` | Stop it, keeping your data |
+| `make restart` | Recreate the container after editing `.env` |
+| `make logs` | Follow the server logs |
+| `make shell` | Shell into the container, e.g. to run `masta chat` |
+
+To use a model server on the host such as Ollama, point the profile's API base at
+`http://host.docker.internal:11434` in Settings — `localhost` inside the container is the
+container itself.
+
 ## Writing your own coach
 
 A coach is a directory with a `coach.yaml`, a `persona.md`, and optional `knowledge/`.
