@@ -1,7 +1,7 @@
 """Shared test fixtures.
 
-Tests never hit a real LLM or the user's real database — a fake provider and a temp DB keep
-them fast, deterministic, and runnable without API keys.
+Tests never hit a real LLM or the user's real database or config — a fake provider, a temp DB,
+and a throwaway config dir keep them fast, deterministic, and runnable without API keys.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from collections.abc import Iterable, Iterator
 
 import pytest
 
+from masta.config import get_settings
 from masta.llm.base import CompletionResult, Message
 from masta.memory.repository import Repository
 
@@ -38,6 +39,17 @@ class FakeProvider:
 
     def embed(self, texts: Iterable[str]) -> list[list[float]]:
         return [[0.0, 1.0, 2.0] for _ in texts]
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    """Point config and user coaches at a temp dir, so tests can't read or write the real one."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    for var in ("MASTA_CONFIG_DIR", "MASTA_DATA_DIR", "MASTA_DEFAULT_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    get_settings.cache_clear()
+    yield tmp_path / "config" / "masta"
+    get_settings.cache_clear()
 
 
 @pytest.fixture
