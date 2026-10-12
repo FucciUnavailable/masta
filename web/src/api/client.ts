@@ -4,12 +4,18 @@ import type {
   CheckIn,
   CheckInCreate,
   Coach,
+  CoachCreate,
+  CoachDetail,
+  CoachUpdate,
   Goal,
   GoalCreate,
   GoalStatus,
   Health,
   Message,
   Profile,
+  ProfileUpdate,
+  Session,
+  Settings,
 } from './types'
 
 // Same-origin: Vite proxies /api in dev, and `masta serve` hosts both in production.
@@ -44,6 +50,8 @@ async function errorFrom(res: Response): Promise<ApiError> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init)
   if (!res.ok) throw await errorFrom(res)
+  // Deletes answer 204 with no body; callers type those as `void`.
+  if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
@@ -95,11 +103,36 @@ async function* streamChat(
 
 export const api = {
   health: () => request<Health>('/health'),
+  settings: () => request<Settings>('/settings'),
+  setDefaultProfile: (name: string) =>
+    request<Settings>(
+      '/settings',
+      withBody('PATCH', { default_profile: name }),
+    ),
+
   profiles: () => request<Profile[]>('/profiles'),
+  saveProfile: (name: string, profile: ProfileUpdate) =>
+    request<Profile>(
+      `/profiles/${encodeURIComponent(name)}`,
+      withBody('PUT', profile),
+    ),
+  deleteProfile: (name: string) =>
+    request<void>(`/profiles/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    }),
 
   coaches: () => request<Coach[]>('/coaches'),
   coach: (name: string) =>
-    request<Coach>(`/coaches/${encodeURIComponent(name)}`),
+    request<CoachDetail>(`/coaches/${encodeURIComponent(name)}`),
+  createCoach: (coach: CoachCreate) =>
+    request<CoachDetail>('/coaches', withBody('POST', coach)),
+  updateCoach: (name: string, coach: CoachUpdate) =>
+    request<CoachDetail>(
+      `/coaches/${encodeURIComponent(name)}`,
+      withBody('PUT', coach),
+    ),
+  deleteCoach: (name: string) =>
+    request<void>(`/coaches/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 
   goals: (status?: GoalStatus) => request<Goal[]>(`/goals${query({ status })}`),
   createGoal: (goal: GoalCreate) =>
@@ -111,6 +144,14 @@ export const api = {
     request<CheckIn[]>(`/checkins${query({ limit })}`),
   createCheckin: (checkin: CheckInCreate) =>
     request<CheckIn>('/checkins', withBody('POST', checkin)),
+
+  sessions: () => request<Session[]>('/sessions'),
+  createSession: (coach: string) =>
+    request<Session>('/sessions', withBody('POST', { coach })),
+  deleteSession: (id: number) =>
+    request<void>(`/sessions/${id}`, { method: 'DELETE' }),
+  sessionMessages: (id: number) =>
+    request<Message[]>(`/sessions/${id}/messages`),
 
   messages: (coach?: string, limit?: number) =>
     request<Message[]>(`/messages${query({ coach, limit })}`),
